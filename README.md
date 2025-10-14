@@ -1,7 +1,6 @@
 # ORPHE-CORE.py
 Happy hacking for ORPHE INSOLE with python!!
 
-https://github.com/Orphe-OSS/ORPHE-CORE.py/assets/1846131/03c5f199-9a54-4307-a014-56b48d3ba373
 
 > [!CAUTION]
 > 現在ORPHE INSOLEでは運動解析処理（Analytics）は利用できません。Analyticsを利用したい場合はORPHE COREをご利用ください。
@@ -41,8 +40,6 @@ python device_information.py
 
 ### matplotlibを利用してデータを可視化する
 
-https://github.com/user-attachments/assets/00990bf3-6367-4efe-9f6d-ec41de95cc93
-
 `plot_acc_values.py`または`plot_pressure_values.py`を実行することで、取得したセンサデータをmatplotlibを利用してリアルタイムに可視化することができます。初期設定では加速度値や圧力センサデータを可視化していますが、他のデータを可視化したい場合は適宜変更してください。
 ```bash
 pip install matplotlib
@@ -68,18 +65,18 @@ python gui.py
 ```
 
 ## ドキュメント
-  * [ORPHE CORE Python API Reference](https://orphe-oss.github.io/ORPHE-CORE.py/api/orphe_core.html)
+  * [ORPHE CORE Python API Reference](https://orphe-oss.github.io/ORPHE-INSOLE.py/api/orphe_insole.html)
 
 ### 生成方法
 orphe_insole.pyのdocstringからドキュメントを生成します。htmlファイルの生成には pdoc3 を利用しています。orphe_insole.pyのdocstringを書き換えたり、機能を追加した場合は以下のコマンドでドキュメントを再生成してください。
 ```bash
 pip install pdoc3
-pdoc orphe_core --html -o docs/api --force
+pdoc orphe_insole --html -o docs/api --force
 ```
 
 ## 教材
 wikiに学習教材や具体的なケーススタディをまとめています。このREADMEで基本的な使い方を学んだ後は、wikiを参照してさらに深く学ぶことができます。
   * [ORPHE-CORE.py学習教材](https://github.com/Orphe-OSS/ORPHE-CORE.py/wiki)
+  * ORPHE-INSOLE.py学習教材 （準備中）
 
-## Compatibility
- * ORPHE CORE 50Hz、200Hzモデルに対応していますが、50Hzモデルではsensor valuesにおける加速度、ジャイロ、クオータニオンのタイムスタンプやシリアル番号、パケット番号は利用することができません。これはファームウェアの仕様によるものです。
+ 
