@@ -43,7 +43,9 @@ python device_information.py
 `plot_acc_values.py`または`plot_pressure_values.py`を実行することで、取得したセンサデータをmatplotlibを利用してリアルタイムに可視化することができます。初期設定では加速度値や圧力センサデータを可視化していますが、他のデータを可視化したい場合は適宜変更してください。
 ```bash
 pip install matplotlib
-python plot_sensor_values.py
+python plot_acc_values.py
+# または
+python plot_pressure_values.py
 ```
 
 ### OSCでデータを送信する
