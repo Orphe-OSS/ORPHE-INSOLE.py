@@ -1,4 +1,4 @@
-# ORPHE-CORE.py
+# ORPHE-INSOLE.py
 Happy hacking for ORPHE INSOLE with python!!
 
 
@@ -49,7 +49,7 @@ python plot_pressure_values.py
 ```
 
 ### OSCでデータを送信する
-`osc.py`を実行することで、ORPHE COREから取得したデータをOSCで送信することができます。初期設定では5005番のポートに送信します。なお`osc.py`は加速度値のみをoscで送信していますので、他のデータを送信したい場合は適宜変更してください。
+`osc.py`を実行することで、ORPHE INSOLEから取得したデータをOSCで送信することができます。初期設定では5005番のポートに送信します。なお`osc.py`は加速度値のみをoscで送信していますので、他のデータを送信したい場合は適宜変更してください。
 ```bash
 pip install python-osc
 python osc.py
@@ -67,7 +67,7 @@ python gui.py
 ```
 
 ## ドキュメント
-  * [ORPHE CORE Python API Reference](https://orphe-oss.github.io/ORPHE-INSOLE.py/api/orphe_insole.html)
+  * [ORPHE INSOLE Python API Reference](https://orphe-oss.github.io/ORPHE-INSOLE.py/api/orphe_insole.html)
 
 ### 生成方法
 orphe_insole.pyのdocstringからドキュメントを生成します。htmlファイルの生成には pdoc3 を利用しています。orphe_insole.pyのdocstringを書き換えたり、機能を追加した場合は以下のコマンドでドキュメントを再生成してください。
