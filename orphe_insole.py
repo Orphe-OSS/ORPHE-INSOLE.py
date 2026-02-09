@@ -828,10 +828,10 @@ class Orphe:
         すべてのBLEデバイスをスキャンして、その結果を返す
 
         Returns:
-            BLEデバイスのリスト
+            (BLEDevice, AdvertisementData) のタプルの辞書
         """
         print("Scanning all BLE devices...")
-        devices = await BleakScanner.discover()
+        devices = await BleakScanner.discover(return_adv=True)
         return devices
 
     async def connect(self, address=None):
@@ -845,19 +845,19 @@ class Orphe:
         """
         print(
             f"Scanning for ORPHE CORE BLE device...[address specified: {address}]")
-        devices = await BleakScanner.discover()
+        devices = await BleakScanner.discover(return_adv=True)
 
         target_device = None
 
         if address is not None:
-            for device in devices:
+            for addr, (device, adv_data) in devices.items():
                 if device.address == address:
                     target_device = device
                     print(
                         f"Found target device: {device.name}(name), {device.address}(address)")
                     break
         else:
-            for device in devices:
+            for addr, (device, adv_data) in devices.items():
                 #  device.name に INS* が含まれている場合に接続する
                 if device.name is not None and "INS" in device.name:
                     target_device = device
