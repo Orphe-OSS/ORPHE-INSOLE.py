@@ -16,13 +16,45 @@ import asyncio
 import math
 import time
 
+from bleak import BleakScanner
+
 from orphe_insole import (
     GYRO_DPS_PER_LSB_PER_RANGE,
     GYRO_RANGES,
     GYRO_SENSITIVITY_SCALE,
     QUAT_SCALE,
+    SERVICE_ORPHE_INFORMATION_UUID,
     Orphe,
 )
+
+
+async def find_insole_address():
+    """ORPHEサービスUUIDのアドバタイズでINSOLEを探してアドレスを返す。
+
+    ライブラリ既定の探索はデバイス名に "INS" を含むものを探すが、
+    macOS(CoreBluetooth)はアドバタイズ名を返さないことが多く
+    （scan結果の name が None になる）、名前マッチでは見つからない。
+    Web Bluetooth(JS版)と同様にサービスUUIDで判定する。
+    """
+    print("Scanning for ORPHE INSOLE (by service UUID, 10s)...")
+    devices = await BleakScanner.discover(timeout=10.0, return_adv=True)
+    candidates = []
+    for _addr, (device, adv) in devices.items():
+        uuids = [u.lower() for u in (adv.service_uuids or [])]
+        name = device.name or adv.local_name or ""
+        if SERVICE_ORPHE_INFORMATION_UUID.lower() in uuids or "INS" in name:
+            candidates.append((adv.rssi, device, name))
+    if not candidates:
+        print("ORPHE INSOLE が見つかりません。以下を確認してください:")
+        print("  - Chrome等の他アプリが接続したままになっていないか（接続中はアドバタイズ停止）")
+        print("  - INSOLEがスリープしていないか（軽く動かす）")
+        return None
+    candidates.sort(reverse=True, key=lambda c: c[0])
+    for rssi, device, name in candidates:
+        print(f"  found: {name or '(no name)'} rssi={rssi} address={device.address}")
+    best = candidates[0]
+    print(f"Connecting to {best[1].address} (rssi={best[0]})")
+    return best[1].address
 
 # 回転テストの合否しきい値（ジャイロ積分角 / yaw変化）
 RATIO_PASS_MIN = 0.93
@@ -214,7 +246,10 @@ async def main():
     orphe.set_got_quat_callback(verifier.got_quat)
     orphe.set_got_converted_gyro_callback(verifier.got_converted_gyro)
 
-    if not await orphe.connect():
+    address = await find_insole_address()
+    if address is None:
+        return
+    if not await orphe.connect(address=address):
         return
 
     # quaternionが必要なので mode 4（gyro + acc + press + quat, 100Hz）
