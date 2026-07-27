@@ -15,6 +15,30 @@ SERVICE_OTHER_UUID = "db1b7aca-cda5-4453-a49b-33a53d3f0833"
 
 WRITE_WAIT_INTERVAL_SEC = 0.5
 
+# センサレンジのテーブル（device information の range.acc / range.gyro のインデックス）
+ACC_RANGES = [2, 4, 8, 16]           # [G]
+GYRO_RANGES = [250, 500, 1000, 2000]  # [deg/s]
+
+# ジャイロの実感度[dps/LSB]。IMU(LSM6DSOX)のデータシート代表感度は
+# ±250/500/1000/2000 dps でそれぞれ 8.75/17.5/35/70 mdps/LSB であり、
+# これは「フルスケール[dps] × 0.000035」に等しい（例: 2000 × 0.000035 = 0.07 dps/LSB）。
+GYRO_DPS_PER_LSB_PER_RANGE = 0.000035
+
+# 正規化値（raw int16 / 32768）から物理値[dps]へ換算する際の補正係数。
+# 従来の `raw / 32768 * range` は raw を理想的な Q15 とみなす換算で、
+# ±2000 dps では 61.035 mdps/LSB となりデータシート感度(70 mdps/LSB)より
+# 約12.8%小さい物理値になっていた。感度側を正として次の係数を掛ける。
+#   32768 * 0.000035 = 1.14688
+# 注）正規化値（self.gyro, got_gyro_callback）は後方互換のため従来どおり raw/32768。
+#     加速度は /32768 * range がデータシート感度(0.488 mg/LSB @±16G)と一致するため補正不要。
+GYRO_SENSITIVITY_SCALE = 32768 * GYRO_DPS_PER_LSB_PER_RANGE
+
+# クォータニオンのスケール。ORPHE INSOLE のファームウェアは符号付き Q14
+# （1.0 = 16384）でクォータニオンを符号化している。従来の /32768（Q15）では
+# ノルムが約0.5になり、そこから求めるオイラー角（特に yaw）も圧縮されていた。
+# JS版SDK（ORPHE-INSOLE.js）では実機でノルム≈1.0を確認して Q14 に修正済み。
+QUAT_SCALE = 16384
+
 
 def to_timestamp(hours, minutes, seconds, ms_high, ms_low):
     """
@@ -397,8 +421,8 @@ class SensorValuesData:
         acc: 加速度センサの値
         converted_acc: 変換後の加速度センサの値
         gyro: ジャイロセンサの値
-        converted_gyro: 変換後のジャイロセンサの値
-        quat: クォータニオンの値
+        converted_gyro: 変換後のジャイロセンサの値（IMUの実感度で換算した[deg/s]。GYRO_SENSITIVITY_SCALE 参照）
+        quat: クォータニオンの値（Q14でデコード。QUAT_SCALE 参照）
     """
 
     def __init__(self, owner, data, sensor_range):
@@ -431,7 +455,7 @@ class SensorValuesData:
                     data[26+step:28+step], byteorder='big', signed=True) / 32768
 
                 self.converted_acc = AccData()
-                amp_acc = [2, 4, 8, 16][sensor_range.acc]
+                amp_acc = ACC_RANGES[sensor_range.acc]
                 self.converted_acc.x = self.acc.x * amp_acc
                 self.converted_acc.y = self.acc.y * amp_acc
                 self.converted_acc.z = self.acc.z * amp_acc
@@ -445,20 +469,22 @@ class SensorValuesData:
                     data[20+step:22+step], byteorder='big', signed=True) / 32768
 
                 self.converted_gyro = GyroData()
-                amp_gyro = [250, 500, 1000, 2000][sensor_range.gyro]
+                # 物理値[dps]はIMUの実感度で換算する（GYRO_SENSITIVITY_SCALE の詳細は冒頭の定数定義を参照）
+                amp_gyro = GYRO_RANGES[sensor_range.gyro] * \
+                    GYRO_SENSITIVITY_SCALE
                 self.converted_gyro.x = self.gyro.x * amp_gyro
                 self.converted_gyro.y = self.gyro.y * amp_gyro
                 self.converted_gyro.z = self.gyro.z * amp_gyro
 
                 self.quat = QuatData()
                 self.quat.w = int.from_bytes(
-                    data[8+step:10+step], byteorder='big', signed=True) / 32768
+                    data[8+step:10+step], byteorder='big', signed=True) / QUAT_SCALE
                 self.quat.x = int.from_bytes(
-                    data[10+step:12+step], byteorder='big', signed=True) / 32768
+                    data[10+step:12+step], byteorder='big', signed=True) / QUAT_SCALE
                 self.quat.y = int.from_bytes(
-                    data[12+step:14+step], byteorder='big', signed=True) / 32768
+                    data[12+step:14+step], byteorder='big', signed=True) / QUAT_SCALE
                 self.quat.z = int.from_bytes(
-                    data[14+step:16+step], byteorder='big', signed=True) / 32768
+                    data[14+step:16+step], byteorder='big', signed=True) / QUAT_SCALE
 
                 self.acc.serial_number = self.serial_number
                 self.converted_acc.serial_number = self.serial_number
@@ -519,7 +545,7 @@ class SensorValuesData:
                     data[18+step:20+step], byteorder='big', signed=True) / 32768
 
                 self.converted_acc = AccData()
-                amp_acc = [2, 4, 8, 16][sensor_range.acc]
+                amp_acc = ACC_RANGES[sensor_range.acc]
                 self.converted_acc.x = self.acc.x * amp_acc
                 self.converted_acc.y = self.acc.y * amp_acc
                 self.converted_acc.z = self.acc.z * amp_acc
@@ -533,7 +559,9 @@ class SensorValuesData:
                     data[12+step:14+step], byteorder='big', signed=True) / 32768
 
                 self.converted_gyro = GyroData()
-                amp_gyro = [250, 500, 1000, 2000][sensor_range.gyro]
+                # 物理値[dps]はIMUの実感度で換算する（GYRO_SENSITIVITY_SCALE の詳細は冒頭の定数定義を参照）
+                amp_gyro = GYRO_RANGES[sensor_range.gyro] * \
+                    GYRO_SENSITIVITY_SCALE
                 self.converted_gyro.x = self.gyro.x * amp_gyro
                 self.converted_gyro.y = self.gyro.y * amp_gyro
                 self.converted_gyro.z = self.gyro.z * amp_gyro
@@ -618,7 +646,7 @@ class SensorValuesData:
                     data[26+step:28+step], byteorder='big', signed=True) / 32768
 
                 self.converted_acc = AccData()
-                amp_acc = [2, 4, 8, 16][sensor_range.acc]
+                amp_acc = ACC_RANGES[sensor_range.acc]
                 self.converted_acc.x = self.acc.x * amp_acc
                 self.converted_acc.y = self.acc.y * amp_acc
                 self.converted_acc.z = self.acc.z * amp_acc
@@ -632,20 +660,22 @@ class SensorValuesData:
                     data[20+step:22+step], byteorder='big', signed=True) / 32768
 
                 self.converted_gyro = GyroData()
-                amp_gyro = [250, 500, 1000, 2000][sensor_range.gyro]
+                # 物理値[dps]はIMUの実感度で換算する（GYRO_SENSITIVITY_SCALE の詳細は冒頭の定数定義を参照）
+                amp_gyro = GYRO_RANGES[sensor_range.gyro] * \
+                    GYRO_SENSITIVITY_SCALE
                 self.converted_gyro.x = self.gyro.x * amp_gyro
                 self.converted_gyro.y = self.gyro.y * amp_gyro
                 self.converted_gyro.z = self.gyro.z * amp_gyro
 
                 self.quat = QuatData()
                 self.quat.w = int.from_bytes(
-                    data[8+step:10+step], byteorder='big', signed=True) / 32768
+                    data[8+step:10+step], byteorder='big', signed=True) / QUAT_SCALE
                 self.quat.x = int.from_bytes(
-                    data[10+step:12+step], byteorder='big', signed=True) / 32768
+                    data[10+step:12+step], byteorder='big', signed=True) / QUAT_SCALE
                 self.quat.y = int.from_bytes(
-                    data[12+step:14+step], byteorder='big', signed=True) / 32768
+                    data[12+step:14+step], byteorder='big', signed=True) / QUAT_SCALE
                 self.quat.z = int.from_bytes(
-                    data[14+step:16+step], byteorder='big', signed=True) / 32768
+                    data[14+step:16+step], byteorder='big', signed=True) / QUAT_SCALE
 
                 self.pressure = PressureData()
                 for j in range(6):
@@ -784,6 +814,9 @@ class Orphe:
     def set_got_converted_gyro_callback(self, callback):
         """
         ジャイロセンサの値を取得したときに呼び出されるコールバック関数を設定する
+
+        それぞれの値はジャイロレンジとIMUの実感度によって[deg/s]に変換されます。
+        （感度は ±250/500/1000/2000 dps で 8.75/17.5/35/70 mdps/LSB。詳細は GYRO_SENSITIVITY_SCALE のコメント参照）
         """
         self.got_converted_gyro_callback = callback
 
